@@ -1,0 +1,17 @@
+/image/
+/video/
+/tex/**/*.aux
+/tex/**/*.log
+/tex/**/*.out
+/tex/**/*.toc
+/tex/**/*.synctex.gz
+/tex/**/*.fls
+/tex/**/*.fdb_latexmk
+/tex/**/*.bbl
+/tex/**/*.blg
+/tex/**/*.bcf
+/tex/**/*.run.xml
+/tex/**/*.nav
+/tex/**/*.snm
+/tex/**/*.vrb
+.codex
