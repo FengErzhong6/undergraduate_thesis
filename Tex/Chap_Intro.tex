@@ -1,47 +1,22 @@
-\chapter{引言}\label{chap:introduction}
+\chapter{绪论}\label{chap:introduction}
 
-\section{研究背景}
+\section{研究背景与意义}
+近年来，人工智能技术取得了突破性进展，尤其是大语言模型（LLM）和视觉-语言大模型（VLM）的飞速发展，赋予了机器前所未有的认知与逻辑推理能力。然而，传统的人工智能主要局限于数字世界中处理文本和图像，缺乏与真实物理世界交互的能力。为了实现真正意义上的通用人工智能，人工智能的研究焦点正逐渐从“纯软件层面”向“软硬结合”的具身智能范式转移。具身智能要求智能体能够在复杂的物理环境中感知、规划并执行具体任务，而“操作（Manipulation）”能力则是其与物理世界产生深度交互的核心途径。
 
-考虑到许多同学可能缺乏\LaTeX{}使用经验，ucasthesis将\LaTeX{}的复杂性高度封装，开放出简单的接口，以便轻易使用。同时，对用\LaTeX{}撰写论文的一些主要难题，如制图、制表、文献索引等，进行了详细说明，并提供了相应的代码样本，理解了上述问题后，对于初学者而言，使用此模板撰写学位论文将不存在实质性的困难。所以，如果你是初学者，请不要直接放弃，因为同样为初学者的我，十分明白让\LaTeX{}简单易用的重要性，而这正是ucasthesis所追求和体现的。
+在机器人操作领域，传统工业机器人多采用单一的两指或三指夹爪，仅能完成简单的抓取、搬运等结构化任务，难以适应人类生活和复杂非结构化环境中的泛化需求。相比之下，仿生灵巧手（Dexterous Hand）具备高度的自由度和丰富的运动学特征，能够复刻人类的各种精细化操作（如捏、拧、插接、工具使用等）。因此，基于灵巧手的灵巧操作（Dexterous Manipulation）已成为当前具身智能领域最重要、也最具挑战性的研究前沿之一。
 
-此中国科学院大学学位论文模板ucasthesis基于中科院数学与系统科学研究院吴凌云研究员的CASthesis模板发展而来。当前ucasthesis模板满足最新的中国科学院大学学位论文撰写要求和封面设定。兼顾操作系统：Windows，Linux，MacOS 和\LaTeX{}编译引擎：pdflatex，xelatex，lualatex。支持中文书签、中文渲染、中文粗体显示、拷贝PDF中的文本到其他文本编辑器等特性。此外，对模板的文档结构进行了精心设计，撰写了编译脚本提高模板的易用性和使用效率。
+尽管多自由度灵巧手在硬件层面已具备执行复杂任务的物理基础，但如何为其赋予灵活的“智能大脑”仍面临巨大挑战。在现代人工智能的发展范式中，数据是驱动模型涌现强大泛化能力的最核心燃料。面对灵巧手极高的状态空间维度与复杂的物理交互模态，高度依赖数据的端到端学习方法已成为解决灵巧操作难题的主流路线。然而，训练具身大模型需要海量且高质量的专家数据。与唾手可得的互联网文本和图像不同，真实物理世界的灵巧操作数据获取成本高，数据质量参差不齐，导致当前具身智能领域正面临严峻的“数据荒”。研发可靠的遥操作（Teleoperation）系统，将人类专家的运动精准、便捷地重定向（Retarget）到真实硬件上，是一种有效提高灵巧操作数据采集效率和质量的方法。
 
-ucasthesis的目标在于简化学位论文的撰写，通过模板文档的默认规范设定，论文作者可以将精力集中在论文的内容上，而不需在版面设置上花费过多精力。 同时，ucasthesis的各命令有着扼要的注解和整洁一致的代码结构，对文档的仔细阅读可以为初学者提供一个学习\LaTeX{}的窗口。此外，整个模板的架构十分注重通用性，事实上，ucasthesis不仅是国科大学位论文模板，同时，通过少量修改便可成为使用\LaTeX{}撰写中英文文章或书籍的通用模板，并为使用者的个性化设定提供了接口和相应的代码。
+（引用pi0论文强调recipe的重要性）。在通过遥操作系统获取高质量的专家数据后，如何高效利用这些数据并制定科学的训练范式（Training Recipe），成为了具身模型迈向真机部署不得不解决的一个重要问题。对于比较前沿的灵巧操作控制策略算法，如基于动作分块的Transformer架构（ACT）、视觉语言动作模型（VLA）、世界模型（World Model）等，如何针对不同的架构的特性，来选择合适的数据与训练策略，是成功部署的关键所在。此外，真机部署还需要克服推理延迟、多源传感器数据对齐等“最后一公里”问题。
 
-\section{系统要求}\label{sec:system}
+综上所述，面对具身智能领域的数据获取瓶颈与模型部署难题，本文致力于开发一套基于遥操作的便捷且高精度的灵巧操作数据采集平台。使用该系统获取了高质量专家数据之后，本文进一步探索了前沿架构的训练范式，并在同一实验平台上成功部署了ACT、VLA等先进的策略模型，实现了技术链路的闭环，为后续具身模型算法的研究与落地打下基础。
 
-\href{https://github.com/mohuangrui/ucasthesis}{\texttt{ucasthesis}} 宏包可以在目前主流的 \href{https://en.wikibooks.org/wiki/LaTeX/Introduction}{\LaTeX{}} 编译系统中使用，例如C\TeX{}套装 （请勿混淆C\TeX{}套装与ctex宏包。C\TeX{}套装是集成了许多\LaTeX{}组件的\LaTeX{}编译系统，因已停止维护，\textbf{不再建议使用}。 \href{https://ctan.org/pkg/ctex?lang=en}{ctex} 宏包如同ucasthesis，是\LaTeX{}命令集，其维护状态活跃，并被主流的\LaTeX{}编译系统默认集成，是几乎所有\LaTeX{}中文文档的核心架构。）、MiK\TeX{}（维护较不稳定，\textbf{不太推荐使用}）、\TeX{}Live。推荐的 \href{https://en.wikibooks.org/wiki/LaTeX/Installation}{\LaTeX{}编译系统} 和 \href{https://en.wikibooks.org/wiki/LaTeX/Installation}{\LaTeX{}文本编辑器} 为
-\begin{center}
-    %\footnotesize% fontsize
-    %\setlength{\tabcolsep}{4pt}% column separation
-    %\renewcommand{\arraystretch}{1.5}% row space
-    \begin{tabular}{lcc}
-        \hline
-        %\multicolumn{num_of_cols_to_merge}{alignment}{contents} \\
-        %\cline{i-j}% partial hline from column i to column j
-        操作系统 & \LaTeX{}编译系统 & \LaTeX{}文本编辑器\\
-        \hline
-        Linux & \href{https://www.tug.org/texlive/acquire-netinstall.html}{\TeX{}Live Full} & \href{http://www.xm1math.net/texmaker/}{Texmaker}\\
-        MacOS & \href{https://www.tug.org/mactex/}{Mac\TeX{} Full} & \href{http://www.xm1math.net/texmaker/}{Texmaker}\\
-        Windows & \href{https://www.tug.org/texlive/acquire-netinstall.html}{\TeX{}Live Full} & \href{http://www.xm1math.net/texmaker/}{Texmaker}\\
-        \hline
-    \end{tabular}
-\end{center}
+\section{研究现状}
+本节将对灵巧操作的数据获取与策略模型研究现状进行综述。
+\subsection{灵巧操作的数据获取研究}
+目前，主流的数据获取方法可分为基于无标记视觉、基于穿戴式设备和基于主从机械结构三大类。
 
-\LaTeX{}编译系统 (如\TeX{}Live) 用于提供编译环境，\LaTeX{}文本编辑器 (如Texmaker) 用于编辑\TeX{}源文件。请从各软件的官网下载安装程序，勿使用其它程序源。\textbf{\LaTeX{}编译系统和\LaTeX{}编辑器分别安装成功后，用户即完成了\LaTeX{}的系统配置}，无需其他手动干预和配置。若用户的系统原带有旧版的\LaTeX{}编译系统并想安装新版，请\textbf{先卸载干净旧版再安装新版}。
 
-\section{问题反馈}
+\subsection{灵巧操作的策略模型研究}
 
-关于\LaTeX{}的知识性问题，请查阅 \href{https://github.com/mohuangrui/ucasthesis/wiki}{ucasthesis和\LaTeX{}知识小站} 和 \href{https://en.wikibooks.org/wiki/LaTeX}{\LaTeX{} Wikibook}。
-
-关于模板编译和样式设计的问题，请\textbf{先仔细阅读此说明文档，特别是“常见问题”（章节~\ref{sec:qa}）}。若问题仍无法得到解决，请\textbf{先将问题理解清楚并描述清楚，再将问题反馈}至 \href{https://github.com/mohuangrui/ucasthesis/issues}{Github/ucasthesis/issues}。
-
-欢迎大家有效地反馈模板不足之处，一起不断改进模板。希望大家向同事积极推广\LaTeX{}，一起更高效地做科研。
-
-\section{模板下载}
-
-\begin{center}
-    \href{https://github.com/mohuangrui/ucasthesis}{Github/ucasthesis}: \url{https://github.com/mohuangrui/ucasthesis}
-\end{center}
-
-\section{尝试添加新的section}
+\section{论文结构安排}
