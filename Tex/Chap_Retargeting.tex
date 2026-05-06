@@ -1,1 +1,389 @@
-\chapter{数据采集重定向的数学原理}\label{chap:retargeting}
+\chapter{数据采集系统的数学原理}\label{chap:retargeting}
+为实现灵巧操作系统的闭环遥操作控制，上位机从 HTC Vive Tracker 和 MANUS 数据手套等多源传感器获取的并非可直接执行的控制指令，而是操作者在统一坐标系下的位姿、骨架与手部运动信息。由于人体关节结构与机械臂、灵巧手在自由度配置、运动学约束和关节定义上均存在显著差异，这些原始感知数据必须经过坐标变换、运动学求解与动作重定向，才能转换为底层控制器可接收的目标关节角度。基于这一需求，本章将分别介绍由 Tracker 位姿解算机械臂关节角、由 MANUS 骨架数据解算灵巧手关节角的基本原理与实现方法，为后续的实时控制与数据采集提供数学基础。
+
+\section{从tracker位姿解算机械臂关节角}
+机械臂重定向过程大致可分为几个连续步骤：首先，根据 Tracker 在动捕坐标系中的位姿信息，通过坐标系标定与空间变换，求得机械臂末端在机器人基座坐标系下的目标末端执行器位姿；其次，在已知目标末端位姿的基础上，结合机械臂自身的运动学模型，求解满足约束条件的关节角度，即逆运动学问题。下面将分别对这几个过程的数学原理与实现方法进行介绍。
+（这里要补充一个真人佩戴tracker的图片说明位置关系）
+\subsection{解算目标末端执行器位姿}
+需要注意的是，SteamVR采用的坐标系和ROS采用的坐标系约定不同，方便起见，下文我们把SteamVR采用的坐标系称为VR系，ROS采用的坐标系称为ROS系。两坐标系的区别如图~\ref{fig:ros-vr-axis}所示。
+为简化记号，下面记 $\Des{B}$、$\Des{Ab}$、$\Des{S}$、$\Des{W_h}$、$\Des{W_r}$、$\Des{E}$ 分别表示基座、腹部、肩部、人腕、机腕和末端执行器坐标系；$\Des{Tr}$ 表示 Tracker 坐标系，$\Des{Tr_w}$、$\Des{Tr_a}$、$\Des{Tr_b}$ 分别表示 wrist、arm、腹部处的 Tracker 坐标系，$\Des{O_w}$ 表示 wrist 处的局部偏置坐标系。
+
+\begin{figure}[htbp]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Img/ROS_axis.png}
+        \par\vspace{0.3em}
+        \small (a) ROS 系坐标轴约定
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Img/VR_axis.png}
+        \par\vspace{0.3em}
+        \small (b) VR 系坐标轴约定
+    \end{minipage}
+    \caption{ROS 系与 VR 系的坐标轴约定对比}
+    \label{fig:ros-vr-axis}
+\end{figure}
+
+SteamVR 首先获得原始 Tracker 位姿。具体来说，得到 ${}^{\Des{VR}}\!\Matrix{T}_{\Des{Tr}}$ 这一齐次变换矩阵，它包含 VR 系中的 tracker 位置 ${}^{\Des{VR}}\!\Vector{p}_{\Des{Tr}}$ 和姿态 ${}^{\Des{VR}}\!\Matrix{R}_{\Des{Tr}}$。然而，我们可以注意到，tracker 的坐标系原点与手腕、手臂、腹部的中心点并不重合，而且对于 wrist 部位，机械臂末端角度与 tracker 相差 $45^\circ$，因此需要应用一个预定义变换。具体操作如下（以 wrist 部位为例）：
+
+\begin{align}
+    {}^{\Des{VR}}\!\Vector{p}_{\Des{W_h}} &=
+    {}^{\Des{VR}}\!\Vector{p}_{\Des{Tr_w}} +
+    {}^{\Des{VR}}\!\Matrix{R}_{\Des{Tr_w}}\Vector{p}_{\Des{O_w}} \\
+    {}^{\Des{VR}}\!\Matrix{R}_{\Des{W_h}} &=
+    {}^{\Des{VR}}\!\Matrix{R}_{\Des{Tr_w}}\Matrix{R}_{\Des{O_w}}
+\end{align}
+
+${\Vector{p}_{\Des{O_w}}}$ 和 ${\Matrix{R}_{\Des{O_w}}}$ 的具体数值记录在附件中，表示了局部VR坐标系下的预定义变换。通过上述变换，我们得到
+\begin{equation}
+    {}^{\Des{VR}}\!\Matrix{T}_{\Des{W_h}} =
+    \begin{bmatrix}
+        {}^{\Des{VR}}\!\Matrix{R}_{\Des{W_h}} & {}^{\Des{VR}}\!\Vector{p}_{\Des{W_h}} \\
+        0 & 1
+    \end{bmatrix}
+\end{equation}
+以及 ${}^{\Des{VR}}\!\Matrix{T}_{\Des{Tr_a}}$ 和 ${}^{\Des{VR}}\!\Matrix{T}_{\Des{Tr_b}}$。假设由VR系仅需旋转即可变换至ROS系，那么根据图~\ref{fig:ros-vr-axis}我们可以直接写出 ${}^{\Des{ROS}}\!\Matrix{T}_{\Des{VR}}$。接下来我们利用 ${}^{\Des{ROS}}\!\Matrix{T}_{\Des{VR}}$ 将坐标系变换至ROS系（以 wrist 部位为例）：
+\begin{equation}
+    {}^{\Des{ROS}}\!\Matrix{T}_{\Des{W_h}} =
+    {}^{\Des{ROS}}\!\Matrix{T}_{\Des{VR}} \cdot {}^{\Des{VR}}\!\Matrix{T}_{\Des{W_h}}
+\end{equation}
+获得了ROS系中的绝对位姿之后，我们就可以使用ros topic进行发布以供后续的计算。
+
+我们先将绝对位姿变换为相对于人体腹部（Ab）坐标系的位姿，即：
+\begin{align}
+    {}^{\Des{Ab}}\!\Matrix{T}_{\Des{W_h}} &=
+    \left({}^{\Des{ROS}}\!\Matrix{T}_{\Des{Ab}}\right)^{-1}
+    \cdot {}^{\Des{ROS}}\!\Matrix{T}_{\Des{W_h}} \\
+    {}^{\Des{Ab}}\!\Matrix{T}_{\Des{Tr_a}} &=
+    \left({}^{\Des{ROS}}\!\Matrix{T}_{\Des{Ab}}\right)^{-1}
+    \cdot {}^{\Des{ROS}}\!\Matrix{T}_{\Des{Tr_a}}
+\end{align}
+
+从中可见真正重要的是相对位姿关系，因此我们无需获取精确的VR系和ROS系的坐标原点位置。这是一个很好的性质，因为这意味着我们不需要每次启动SteamVR都重新标定坐标系原点的位置（特别是在没有VR头显的情况下，这很困难），而是可以使用任意的原点位置。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Img/marvin_point.png}
+    \caption{机械臂关键点示意图}
+    \label{fig:marvin-point}
+\end{figure}
+以上相对位姿关系描述的是人体，但是我们真正需要的是末端执行器相对于机械臂base的位姿。观察机械臂安装方式如图~\ref{fig:marvin-point}所示，机械臂的base难以对应人体的具体部位，但是机械臂的shoulder显然可以和人体的shoulder对应，因此我们选择将人体的 ${}^{\Des{Ab}}\!\Matrix{T}_{\Des{W_h}}$ 变换到 ${}^{\Des{S}}\!\Matrix{T}_{\Des{W_h}}$，这里要用到一个预定义变换（因人而异，需要针对操作者标定）${}^{\Des{S}}\!\Matrix{T}_{\Des{Ab}}$：
+\begin{equation}
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{W_h}} =
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{Ab}} \cdot
+    {}^{\Des{Ab}}\!\Matrix{T}_{\Des{W_h}}
+\end{equation}
+
+现在我们有两种选择：1. 直接把人体的 ${}^{\Des{S}}\!\Matrix{T}_{\Des{W_h}}$ 当作机械臂的相对位姿关系进行下一步计算。 2. 由于人体手臂长度小于机械臂长度，将 ${}^{\Des{S}}\!\Matrix{T}_{\Des{W_h}}$ 沿正前方的位置偏移乘以一个修正参数之后当作机械臂的相对位姿关系进行计算。以上两种方法都是可以的，这里为了方便推导我们选择方法1。由于人体末端的wrist坐标系约定和机械臂末端的坐标系约定不一样，这里将人体末端记为 ${}^{\Des{S}}\!\Matrix{T}_{\Des{W_h}}$，机械臂末端记为 ${}^{\Des{S}}\!\Matrix{T}_{\Des{W_r}}$，我们需要一个预定义变换 ${}^{\Des{W_h}}\!\Matrix{T}_{\Des{W_r}}$ 来将人体末端坐标系变换为机械臂末端坐标系：
+\begin{equation}
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{W_r}} =
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{W_h}} \cdot
+    {}^{\Des{W_h}}\!\Matrix{T}_{\Des{W_r}}
+\end{equation}
+
+根据机械臂的DH参数，我们很容易可以获取 ${}^{\Des{B}}\!\Matrix{T}_{\Des{S}}$ 和 ${}^{\Des{W_r}}\!\Matrix{T}_{\Des{E}}$，最终我们得到了IK的输入位姿：
+\begin{equation}
+    {}^{\Des{B}}\!\Matrix{T}_{\Des{E}} =
+    {}^{\Des{B}}\!\Matrix{T}_{\Des{S}} \cdot
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{W_r}} \cdot
+    {}^{\Des{W_r}}\!\Matrix{T}_{\Des{E}}
+\end{equation}
+
+\subsection{解算大臂参考向量}
+计算得到 ${}^{\Des{B}}\!\Matrix{T}_{\Des{E}}$ 之后，我们却不能直接将其输入IK求解器获取关节角。这是因为我们的机械臂有7个自由度，而参考位姿只提供了6个约束，因此IK的求解结果可能有无穷多组解。这会带来一个冗余的自由度，导致机械臂在运动过程中可能会出现关节跳变的情况，即：末端位姿变化很小，机械臂关节角度变化却很大，导致不稳定、不安全的运动。一种解决方法是将当前机械臂的关节角度作为求解器的初始seed进行热启动求解，这虽然在一定程度上能够缓解关节跳变问题，但是会使得机械臂的整体姿态变得不够拟人，如手肘内翻等。
+
+对于 S-R-S 构型的7自由度机械臂，这个冗余自由度可以用臂角（arm angle）$\psi$ 显式描述。臂角的经典定义来自 \citet{KreutzDelgado1992armangle} 对7自由度机械臂运动学冗余的参数化；后续工作进一步将其用于 S-R-S 机械臂的全局构型控制和解析逆解\citep{Faria2018armangle}。如图~\ref{fig:arm-angle} 所示，记肩点、肘点和腕点分别为 $S$、$E$ 和 $W$，则三点确定的平面称为臂平面，肩点与腕点的连线 $\overline{SW}$ 是臂平面的旋转轴。若末端位姿保持不变，肘点仍可绕 $\overline{SW}$ 改变位置；臂角 $\psi$ 就是臂平面相对于参考平面绕 $\overline{SW}$ 旋转的角度。
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+            scale=0.9,
+            line cap=round,
+            line join=round,
+            every node/.style={font=\small}
+        ]
+        \coordinate (S) at (0,0);
+        \coordinate (W) at (8,0);
+        \coordinate (M) at (4,0);
+        \coordinate (E) at (5.10,0.95);
+        \coordinate (R) at (5.70,-0.40);
+
+        \fill[orange!12] (S) -- (R) -- (W) -- cycle;
+        \fill[blue!12] (S) -- (E) -- (W) -- cycle;
+
+        \draw[thick, gray!55] (M) ellipse (1.9 and 1.05);
+        \draw[very thick, black!70] (S) -- (W);
+        \draw[densely dashed, orange!75!black] (S) -- (R) -- (W);
+        \draw[very thick, blue!70!black] (S) -- (E) -- (W);
+
+        \draw[thick, orange!75!black, ->] (M) -- (R) node[below right] {$\Vector{r}$};
+        \draw[thick, blue!70!black, ->] (M) -- (E);
+        \draw[->, thick, red!70!black] ($(M)+(0.98,-0.23)$) arc (-13:41:1.0);
+
+        \filldraw[black!80] (S) circle (1.8pt);
+        \filldraw[black!80] (W) circle (1.8pt);
+        \filldraw[blue!70!black] (E) circle (1.8pt);
+
+        \node[below left] at (S) {$S$};
+        \node[below right] at (W) {$W$};
+        \node[above] at (E) {$E$};
+        \node[below] at (M) {肩--腕轴 $\overline{SW}$};
+        \node[blue!70!black] at (6.45,0.88) {臂平面};
+        \node[orange!75!black] at (6.45,-0.58) {参考平面};
+        \node[gray!65] at (2.25,1.15) {肘部自运动圆};
+        \node[red!70!black] at (5.35,0.34) {$\psi$};
+    \end{tikzpicture}
+    \caption{臂角 $\psi$ 的几何定义示意图}
+    \label{fig:arm-angle}
+\end{figure}
+
+为了计算得到臂平面，我们需要该平面上两个不共线的向量，最自然的选择是$\overline{SW}$和$\overline{SE}$。其中$\overline{SW}$可以由${}^{\Des{B}}\!\Matrix{T}_{\Des{E}}$直接得到；而$\overline{SE}$，我们称之为大臂参考向量，可以由${}^{\Des{S}}\!\Matrix{T}_{\Des{Tr_a}}$进一步得到。更准确地说，${}^{\Des{S}}\!\Matrix{T}_{\Des{Tr_a}}$ 的旋转部分表示 Tracker 坐标系三个轴向在肩部坐标系中的表达，可写为
+\begin{equation}
+    {}^{\Des{S}}\!\Matrix{R}_{\Des{Tr_a}} =
+    \left[
+        \begin{array}{c:c:c}
+            {}^{\Des{S}}\!\unitVector{x}_{\Des{Tr_a}} &
+            {}^{\Des{S}}\!\unitVector{y}_{\Des{Tr_a}} &
+            {}^{\Des{S}}\!\unitVector{z}_{\Des{Tr_a}}
+        \end{array}
+    \right]
+\end{equation}
+其中 $\Matrix{R}$ 与 $\Matrix{T}$ 的关系仍然是
+\begin{equation}
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{Tr_a}} =
+    \begin{bmatrix}
+        {}^{\Des{S}}\!\Matrix{R}_{\Des{Tr_a}} &
+        {}^{\Des{S}}\!\Vector{p}_{\Des{Tr_a}} \\
+        0 & 1
+    \end{bmatrix}
+\end{equation}
+根据佩戴方式和图~\ref{fig:ros-vr-axis}中的坐标轴约定，arm 部位的 Tracker 在标定后与人体上臂方向一一对应。换句话说，它的 $-z$ 轴可以直接作为上臂朝向的参考，因此我们取
+\begin{equation}
+    \overline{SE} \parallel -{}^{\Des{S}}\!\unitVector{z}_{\Des{Tr_a}}
+\end{equation}
+作为需要的大臂参考向量。
+
+\subsection{解算机械臂关节角}
+在固定目标末端位姿和臂角 $\psi$ 之后，7自由度逆运动学问题就从一对多问题转化为带冗余参数约束的解析求解问题。
+具体实现时，求解器首先根据目标 TCP 位姿、工具坐标变换以及机械臂 DH 参数计算肩点、腕点和肘部自运动圆；然后以大臂参考向量确定臂平面，在该平面内分别求解肘部的 A/B 两类几何分支。对于每个分支，肩部 3 个关节由前臂平面的 ZYZ 分解得到，腕部 3 个关节由末端姿态相对于前臂的 ZYX 分解得到，再结合肘关节角构成 7 维候选关节角。每个候选解都会经过关节限位、腕部耦合限位和正运动学残差检查，只有末端误差小于阈值的候选解才会进入后续选择。
+
+如果严格把 Tracker 给出的大臂方向作为唯一解析约束，则在实际系统中容易出现无解。其原因是 Tracker 位姿存在噪声、佩戴误差和标定误差，微小的大臂方向抖动就可能使解析候选越过关节限位、接近奇异构型，或无法通过正运动学一致性检查。实际检验中，这类短时无解会直接造成控制输出中断，影响遥操作稳定性。因此系统没有把臂角 $\psi$ 作为硬约束，而是将其作为种子，在种子附近进行离散搜索：先在小范围内精细搜索以保持连续性，再扩大到快速搜索窗口，若仍无可行解才进入更大的重捕获搜索窗口。
+
+对每个搜索到的可行候选关节角 $\Vector{q}$，系统计算如下综合代价：
+\begin{equation}
+    J =
+    J_{\mathrm{ref}}
+    + w_d J_{\mathrm{dir}}
+    + w_c J_{\mathrm{cont}}
+    + w_m J_{\mathrm{mag}}
+    + w_\psi |\Delta \psi|
+    + J_{\mathrm{branch}} .
+\end{equation}
+其中，$J_{\mathrm{ref}}=\sum_i |\Delta q_i|$ 表示候选解与上一帧参考关节角的环形角度差，用于抑制关节跳变；$J_{\mathrm{dir}}$ 是候选解对应的大臂方向与 Tracker 期望大臂方向的夹角，用于保持拟人化肘部姿态；$J_{\mathrm{cont}}$ 是候选大臂方向与上一帧已选择大臂方向的夹角，用于抑制噪声导致的臂平面抖动；$J_{\mathrm{mag}}=\sum_i |q_i|$ 用于偏好关节角幅值较小的自然构型；$|\Delta\psi|$ 表示当前搜索臂角相对种子的偏移量；当候选解与上一帧选择的肘部分支不一致时，额外加入 $J_{\mathrm{branch}}$ 作为分支切换惩罚。当前控制配置请见附件。
+
+最终选择时，求解器在所有通过有效性检查的候选中选取综合代价最小的一组作为当前控制周期的关节角输出。若上一帧已经确定肘部分支，则当前帧优先在同一分支内选择；只有同分支没有可行解时，才允许切换到另一分支并施加惩罚。这样既保留了解析 IK 的实时性，又通过臂角搜索提高了面对 Tracker 噪声时的求解成功率和控制连续性。最后，将选择的关节角发送硬件执行。
+
+\section{从 MANUS 骨架数据解算灵巧手关节角}
+MANUS 数据手套输出的是人体手部骨架节点的空间位置，而灵巧手控制器需要的是 Wuji Hand 的 20 个关节位置指令。二者之间并不存在简单的一一对应关系：一方面，MANUS 骨架节点编号、坐标轴方向和机器人模型使用的约定不同；另一方面，人体手指长度、关节比例和 Wuji Hand 的机械结构也不同。如果直接把人体手指弯曲角映射到机器人关节角，不仅容易受佩戴误差和骨架噪声影响，还会在捏取、张开等动作中出现指尖位置不准或关节越界的问题。因此系统采用“骨架标准化 + 模型约束优化”的方式进行重定向：先把 MANUS 原始节点整理成统一的 21 点手部骨架，再在 Wuji Hand 的 URDF 运动学模型上求解最符合该骨架形状的 20 维关节角。
+
+\subsection{MANUS 骨架标准化}
+设 MANUS 手套输出的原始节点位置为 $\Vector{p}^{\mathrm{raw}}_j \in \mathbb{R}^3$。由于不同设备或发布节点的坐标轴方向可能与重定向模块不一致，系统首先根据配置对坐标轴进行符号修正：
+\begin{equation}
+    \Vector{p}^{\mathrm{fix}}_j =
+    \Matrix{S}\Vector{p}^{\mathrm{raw}}_j,\qquad
+    \Matrix{S}=\operatorname{diag}(s_x,s_y,s_z),\quad
+    s_x,s_y,s_z\in\{-1,1\}.
+\end{equation}
+随后使用预先标定的索引映射 $m(i)$，将 MANUS 节点重排为 MediaPipe 常用的 21 点手部骨架顺序：
+\begin{equation}
+    \Vector{p}_i = \Vector{p}^{\mathrm{fix}}_{m(i)},\qquad i=0,\ldots,20 .
+\end{equation}
+其中 $i=0$ 表示 wrist 点，其余 20 个点按照拇指、食指、中指、无名指和小指依次排列，每根手指包含 4 个关键点。这样做的好处是将传感器相关的节点编号和坐标系约定隔离在输入适配层中，后续重定向算法只需要面对统一格式的手部关键点，左右手也可以复用同一套数学流程。
+
+得到 21 点骨架后，还需要消除手腕整体平移和手掌姿态对手指形状的影响。系统以 wrist 点为原点，并利用 wrist、食指根部和中指根部三个关键点估计手掌局部坐标系。记
+\begin{equation}
+    \bar{\Vector{p}}=
+    \frac{1}{3}\left(\Vector{p}_0+\Vector{p}_5+\Vector{p}_9\right),
+\end{equation}
+则手掌平面的法向量可由如下最小二乘问题得到：
+\begin{equation}
+    \Vector{n} =
+    \operatorname*{arg\,min}_{\|\Vector{x}\|=1}
+    \sum_{i\in\{0,5,9\}}
+    \left((\Vector{p}_i-\bar{\Vector{p}})^\mathrm{T}\Vector{x}\right)^2 .
+\end{equation}
+实际实现中通过 SVD 取最小奇异值对应的方向作为 $\Vector{n}$。然后将 wrist 指向中指根部的方向投影到手掌平面内，得到局部 $x$ 轴：
+\begin{equation}
+    \Vector{x} =
+    \frac{\Vector{v}-(\Vector{v}^{\mathrm{T}}\Vector{n})\Vector{n}}
+    {\left\|\Vector{v}-(\Vector{v}^{\mathrm{T}}\Vector{n})\Vector{n}\right\|},
+    \qquad
+    \Vector{v}=\Vector{p}_0-\Vector{p}_9 .
+\end{equation}
+局部 $z$ 轴由叉乘得到：
+\begin{equation}
+    \Vector{z}=\Vector{x}\times\Vector{n}.
+\end{equation}
+再根据食指根部相对于中指根部的方向确定 $\Vector{n}$ 和 $\Vector{z}$ 的符号，从而避免左右翻转。将三个轴组成旋转矩阵
+\begin{equation}
+    \Matrix{R}_{\mathrm{w}} =
+    \begin{bmatrix}
+        \Vector{x} & \Vector{n} & \Vector{z}
+    \end{bmatrix},
+\end{equation}
+并结合左右手各自固定的坐标变换 $\Matrix{R}_{\mathrm{op}\rightarrow\mathrm{mano}}$，即可得到标准化后的手部关键点：
+\begin{equation}
+    \tilde{\Vector{p}}_i =
+    \Matrix{R}_{\mathrm{op}\rightarrow\mathrm{mano}}^{\mathrm{T}}
+    \Matrix{R}_{\mathrm{w}}^{\mathrm{T}}
+    \left(\Vector{p}_i-\Vector{p}_0\right).
+\end{equation}
+经过这一步处理后，输入骨架不再依赖手在全局空间中的位置和朝向，而主要描述五根手指相对于手掌的形状。这对于遥操作很重要，因为灵巧手固定安装在机械臂末端，手指重定向真正需要保留的是抓握形状，而不是 MANUS 手套在世界坐标系中的绝对位置。
+
+\subsection{基于优化的灵巧手关节求解}
+Wuji Hand 模型由 URDF 描述，包含 5 根手指、每根手指 4 个可控关节，因此待求解变量为
+\begin{equation}
+    \Vector{q}=
+    \begin{bmatrix}
+        q_1 & q_2 & \cdots & q_{20}
+    \end{bmatrix}^{\mathrm{T}} .
+\end{equation}
+给定 $\Vector{q}$ 后，可以通过灵巧手正运动学得到手掌、各手指中间连杆以及指尖的位置。系统没有直接优化每个骨架点的绝对位置，而是构造相对于 wrist 或 palm 的向量特征。这样可以减少人体手掌大小、佩戴位置和全局姿态误差带来的影响，同时更关注抓握动作中真正重要的相对几何关系。
+
+对第 $f$ 根手指，首先定义人体骨架中的指尖向量和机器人模型中的指尖向量：
+\begin{align}
+    \Vector{u}_{f,\mathrm{h}} &=
+    \tilde{\Vector{p}}_{\mathrm{tip}(f)}-\tilde{\Vector{p}}_0, \\
+    \Vector{u}_{f,\mathrm{r}}(\Vector{q}) &=
+    \Vector{r}_{\mathrm{tip}(f)}(\Vector{q})-
+    \Vector{r}_{\mathrm{palm}}(\Vector{q}) .
+\end{align}
+同时，为了约束指尖朝向，定义 DIP 到指尖的单位方向：
+\begin{align}
+    \hat{\Vector{d}}_{f,\mathrm{h}} &=
+    \frac{
+        \tilde{\Vector{p}}_{\mathrm{tip}(f)}-
+        \tilde{\Vector{p}}_{\mathrm{dip}(f)}
+    }{
+        \left\|
+        \tilde{\Vector{p}}_{\mathrm{tip}(f)}-
+        \tilde{\Vector{p}}_{\mathrm{dip}(f)}
+        \right\|
+    }, \\
+    \hat{\Vector{d}}_{f,\mathrm{r}}(\Vector{q}) &=
+    \frac{
+        \Vector{r}_{f,\mathrm{tip}}(\Vector{q})-
+        \Vector{r}_{f,\mathrm{link4}}(\Vector{q})
+    }{
+        \left\|
+        \Vector{r}_{f,\mathrm{tip}}(\Vector{q})-
+        \Vector{r}_{f,\mathrm{link4}}(\Vector{q})
+        \right\|
+    } .
+\end{align}
+由此得到指尖约束项
+\begin{equation}
+    J_{\mathrm{tip}}^{(f)} =
+    w_{\mathrm{pos}}\rho_{\delta}
+    \left(
+        \left\|
+        \Vector{u}_{f,\mathrm{r}}(\Vector{q})-
+        \Vector{u}_{f,\mathrm{h}}
+        \right\|
+    \right)
+    +
+    w_{\mathrm{dir}}\rho_{\delta_{\mathrm{dir}}}
+    \left(
+        \left\|
+        \hat{\Vector{d}}_{f,\mathrm{r}}(\Vector{q})-
+        \hat{\Vector{d}}_{f,\mathrm{h}}
+        \right\|
+    \right).
+\end{equation}
+其中 $\rho_\delta(\cdot)$ 为 Huber 损失：
+\begin{equation}
+    \rho_\delta(e)=
+    \begin{cases}
+        \frac{1}{2}e^2, & |e|\le\delta,\\
+        \delta\left(|e|-\frac{1}{2}\delta\right), & |e|>\delta .
+    \end{cases}
+\end{equation}
+相比普通二范数损失，Huber 损失在误差较小时保持二次惩罚，有利于精确拟合；在误差较大时退化为近似线性惩罚，可以降低 MANUS 骨架异常点对求解结果的影响。
+默认配置中，长度损失和完整手形损失采用 $\delta=2.0\,\mathrm{cm}$，方向损失采用 $\delta_{\mathrm{dir}}=0.5\,\mathrm{cm}$，并取 $w_{\mathrm{pos}}=1.0$、$w_{\mathrm{dir}}=10.0$、$w_{\mathrm{full}}=1.0$、$\lambda=0.04$。
+
+仅约束指尖仍然不够，因为不同关节组合可能得到相近的指尖位置，却产生不自然的手指弯曲。因此系统同时约束每根手指的 PIP、DIP 和 TIP 三个关键点相对于 wrist/palm 的向量。令
+\[
+    \mathcal{K}=\{\mathrm{PIP},\mathrm{DIP},\mathrm{TIP}\},
+\]
+其中 $\tilde{\Vector{p}}_{f,k}$ 和 $\Vector{r}_{f,k}(\Vector{q})$ 分别表示第 $f$ 根手指在关键点 $k$ 处的人体骨架位置与机器人模型位置。
+则完整手形约束为
+\begin{equation}
+    J_{\mathrm{full}}^{(f)} =
+    \frac{w_{\mathrm{full}}}{3}
+    \sum_{k\in\mathcal{K}}
+    \rho_{\delta}
+    \left(
+        \left\|
+        \Vector{h}_{f,k,\mathrm{r}}(\Vector{q})-
+        \Vector{h}_{f,k,\mathrm{h}}
+        \right\|
+    \right),
+\end{equation}
+其中
+\begin{align}
+    \Vector{h}_{f,k,\mathrm{h}} &=
+    \tilde{\Vector{p}}_{f,k}-\tilde{\Vector{p}}_0,\\
+    \Vector{h}_{f,k,\mathrm{r}}(\Vector{q}) &=
+    \Vector{r}_{f,k}(\Vector{q})-
+    \Vector{r}_{\mathrm{palm}}(\Vector{q}) .
+\end{align}
+实际系统还对不同手指、不同关节段设置了缩放系数，用于补偿人体手指长度与 Wuji Hand 机械连杆长度之间的差异。
+
+为了兼顾普通张合动作和捏取动作，系统根据拇指指尖与其它四根手指指尖之间的距离自适应地调节两类损失的权重。对非拇指手指 $f$，定义
+\begin{equation}
+    \alpha_f =
+    \operatorname{clip}
+    \left(
+        \frac{d_2 -
+            \left\|
+            \tilde{\Vector{p}}_{\mathrm{tip}(f)}-
+            \tilde{\Vector{p}}_{\mathrm{tip}(\mathrm{thumb})}
+        \right\|}
+        {d_2-d_1},
+        0,\ 0.7
+    \right),
+\end{equation}
+并令拇指的 $\alpha$ 为其它手指 $\alpha_f$ 的最大值。这里的 $d_1$ 和 $d_2$ 分别取 $2.0\,\mathrm{cm}$ 和 $4.0\,\mathrm{cm}$。当拇指与某根手指距离较近时，说明操作者可能正在进行捏取，此时 $\alpha_f$ 增大，求解器更重视指尖位置和指尖方向；当手指距离较远时，$\alpha_f$ 较小，求解器更重视整体手形。这种自适应加权避免了单一目标函数的缺陷：只跟踪整体手形会削弱捏取精度，而只跟踪指尖又容易产生不自然的中间关节姿态。
+
+最终，当前帧的关节角由如下带约束优化问题得到：
+\begin{equation}
+    \Vector{q}^{*} =
+    \operatorname*{arg\,min}_{\Vector{q}_{\min}\le\Vector{q}\le\Vector{q}_{\max}}
+    \left[
+        \sum_{f=1}^{5}
+        \left(
+            \alpha_f J_{\mathrm{tip}}^{(f)}
+            +(1-\alpha_f)J_{\mathrm{full}}^{(f)}
+        \right)
+        +
+        \lambda
+        \left\|
+        \Vector{q}-\Vector{q}_{\mathrm{prev}}
+        \right\|^2
+    \right].
+\end{equation}
+其中 $\Vector{q}_{\min}$ 和 $\Vector{q}_{\max}$ 来自灵巧手模型的关节限位，最后一项用于约束相邻帧关节角变化，降低骨架噪声导致的输出抖动。实现中使用上一帧解作为优化初值；若为第一帧，则使用关节限位中心作为初值。正运动学和雅可比由灵巧手 URDF 模型计算，优化器使用解析梯度进行求解，因此可以在在线遥操作中保持较低延迟。
+
+优化得到的 $\Vector{q}^{*}$ 还会经过一阶低通滤波：
+\begin{equation}
+    \Vector{q}^{\mathrm{cmd}}_t =
+    \Vector{q}^{\mathrm{cmd}}_{t-1}
+    +\beta\left(
+        \Vector{q}^{*}_t-
+        \Vector{q}^{\mathrm{cmd}}_{t-1}
+    \right),
+\end{equation}
+其中 $\beta\in(0,1]$ 为滤波系数，默认取 $\beta=0.2$。这样可以进一步平滑 MANUS 输入中的高频噪声，避免灵巧手关节在小幅手部抖动下频繁抖动。综上，该方法的优点是：输入层与具体 MANUS 节点编号解耦，优化层显式考虑 Wuji Hand 的运动学和关节限位，损失函数同时保留整体手形和指尖精度，并通过自适应捏取权重、上一帧正则项和低通滤波提升在线控制的稳定性。
