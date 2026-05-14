@@ -51,15 +51,23 @@
 \setcounter{page}{1}% 开始页码
 \pagenumbering{Roman}% 页码符号
 
-摘要最后来写，记得别忘了写英文摘要。
+灵巧操作是具身智能中最具挑战性的研究方向之一，其关键难点在于高自由度本体控制、复杂接触交互以及真实示教数据的高成本获取。针对上述问题，本文设计并实现了一套面向灵巧操作任务的数据采集与策略部署流程，构建了由天机 Marvin 机械臂、WUJI HAND 灵巧手、HTC Vive Tracker 动捕系统、MANUS 数据手套和多视角相机组成的遥操作实验平台，并基于 ROS 2 完成多模态数据同步、记录与管理。
 
-\keywords{上海科技大学，学位论文，\LaTeX{}模板}% 中文关键词
+在数据采集与重定向方面，本文建立了人体动作到机器人动作的映射方法，将操作者的上肢位姿和手部骨架分别转换为机械臂关节角与灵巧手关节位置，并形成可用于策略学习的专家示教数据集。在此基础上，本文进一步以 $\pi_{0.5}$ 基座模型为核心，对灵巧操作任务进行真机微调与部署。实验中，模型以关节空间作为动作表示，通过对右臂关节增量和灵巧手绝对关节位置的联合建模，实现了从视觉观测和语言指令到连续动作块的端到端预测。
+
+在真机验证中，微调后的策略已经能够在部分试次中完成“将紫色圆柱体放入碗内”的任务，但整体成功率仍然有限。失败现象主要表现为抓取位置错误、手部过低引发桌面碰撞以及动作输出退化。分析表明，造成性能受限的原因可能包括示教数据中阻抗控制与负载补偿带来的姿态偏差，以及实验环境光照不足导致的视觉识别不稳定。本文的工作验证了高质量遥操作数据对灵巧操作策略学习的重要性，也为后续进一步提升真机部署鲁棒性提供了基础。
+
+\keywords{灵巧操作，数据采集，遥操作，动作重定向，视觉-语言-动作模型}% 中文关键词
 %-
 %-> 英文摘要
 %-
 \chapter*{Abstract}\chaptermark{Abstract}% 摘要标题
 
-This paper is a help documentation for the \LaTeX{} class ucasthesis, which is  a thesis template for the University of Chinese Academy of Sciences. The main content is about how to use the ucasthesis, as well as how to write thesis efficiently by using \LaTeX{}.
+Dexterous manipulation remains one of the most challenging problems in embodied intelligence, mainly due to the high-dimensional control space, complex contact-rich interactions, and the high cost of collecting high-quality expert demonstrations. To address these issues, this thesis develops an integrated pipeline for dexterous manipulation data collection and policy deployment. The proposed platform combines a Tianji Marvin arm, a WUJI HAND dexterous hand, an HTC Vive Tracker motion-capture system, MANUS data gloves, and multi-view RGB cameras, and uses ROS 2 for multimodal synchronization, logging, and session management.
 
-\englishkeywords{ShanghaiTech University, Thesis, \LaTeX{} Template}% 英文关键词
+For data collection and retargeting, the thesis establishes a mapping from human motion to robot actions, converting the operator's upper-limb pose and hand skeleton into robot arm joint angles and hand joint positions. The resulting demonstrations are then used to fine-tune and deploy a $\pi_{0.5}$ base model on the real robot. In the deployed policy, actions are represented in joint space, with the 7 arm joints modeled as relative deltas and the 20 hand joints kept as absolute positions, enabling end-to-end prediction from visual observations and language instructions to continuous action chunks.
+
+In real-robot experiments, the fine-tuned policy can complete the task of placing a purple cylinder into a bowl in part of the trials, but the overall success rate remains limited. The main failure modes include incorrect grasp locations, the hand moving too low and colliding with the table, and degenerated actions with little or no motion. Analysis suggests that the performance bottleneck is likely caused by pose bias in the demonstration data due to impedance control and incomplete end-effector compensation, as well as unstable visual recognition under poor lighting conditions. Overall, this work demonstrates the importance of high-quality teleoperation data for dexterous manipulation policy learning and provides a foundation for more robust real-robot deployment in future work.
+
+\englishkeywords{dexterous manipulation, data collection, teleoperation, action retargeting, vision-language-action model}% 英文关键词
 %---------------------------------------------------------------------------%

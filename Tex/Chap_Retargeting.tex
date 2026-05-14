@@ -37,7 +37,7 @@ SteamVR 首先获得原始 Tracker 位姿。具体来说，得到 ${}^{\Des{VR}}
     {}^{\Des{VR}}\!\Matrix{R}_{\Des{Tr_w}}\Matrix{R}_{\Des{O_w}}
 \end{align}
 
-${\Vector{p}_{\Des{O_w}}}$ 和 ${\Matrix{R}_{\Des{O_w}}}$ 的具体数值见附录~\ref{app:pretransform}，表示局部 VR 坐标系下的预定义变换。通过上述变换，我们得到
+${\Vector{p}_{\Des{O_w}}}$ 和 ${\Matrix{R}_{\Des{O_w}}}$ 的具体数值见附录~\ref{app:pretransform} 中的表~\ref{tab:htc-pretransform}，表示 Tracker 局部安装偏置。通过上述变换，我们得到
 \begin{equation}
     {}^{\Des{VR}}\!\Matrix{T}_{\Des{W_h}} =
     \begin{bmatrix}

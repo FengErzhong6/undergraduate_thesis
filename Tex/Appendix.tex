@@ -1,25 +1,90 @@
-\chapter{局部 VR 坐标系下的预定义变换}\label{app:pretransform}
+\chapter{系统中的预定义刚体变换参数}\label{app:pretransform}
 
-本附录记录 Tracker 局部坐标系到人体目标局部坐标系的固定偏置。以 wrist 处的 Tracker 为例，正文中使用的预定义变换为
+本附录整理两类配置文件中的固定变换参数。
+
+\begin{itemize}
+    \item HTC 部分来自 \path{trackers.yaml}，用于描述 Tracker 的局部安装偏置。
+    \item Marvin 部分来自 \path{marvin_tracker_teleop_controllers.yaml}，用于描述人体与机械臂之间的固定刚体变换。
+\end{itemize}
+
+两类配置均采用四元数顺序 $\left[q_x, q_y, q_z, q_w\right]$，即 ROS/tf2 的向量部在前、标量项在后顺序。
+
+\section{HTC Tracker 的局部安装偏置}
+
+对任意角色 $r$，若 Tracker 原始位姿为 ${}^{\Des{VR}}\!\Matrix{T}_{\Des{Tr_r}}$，则校正后的局部目标坐标系位姿为
 \begin{align}
-    {}^{\Des{VR}}\!\Vector{p}_{\Des{W_h}} &=
-    {}^{\Des{VR}}\!\Vector{p}_{\Des{Tr_w}} +
-    {}^{\Des{VR}}\!\Matrix{R}_{\Des{Tr_w}}\Vector{p}_{\Des{O_w}},\\
-    {}^{\Des{VR}}\!\Matrix{R}_{\Des{W_h}} &=
-    {}^{\Des{VR}}\!\Matrix{R}_{\Des{Tr_w}}\Matrix{R}_{\Des{O_w}}.
+    {}^{\Des{VR}}\!\Vector{p}_{\Des{J_r}} &=
+    {}^{\Des{VR}}\!\Vector{p}_{\Des{Tr_r}} +
+    {}^{\Des{VR}}\!\Matrix{R}_{\Des{Tr_r}}\Vector{p}_{\Des{O_r}},\\
+    {}^{\Des{VR}}\!\Matrix{R}_{\Des{J_r}} &=
+    {}^{\Des{VR}}\!\Matrix{R}_{\Des{Tr_r}}\Matrix{R}_{\Des{O_r}}.
 \end{align}
-其中，$\Vector{p}_{\Des{O_w}}$ 表示局部 VR 坐标系下从 Tracker 原点到人体 wrist 坐标系原点的平移偏置，$\Matrix{R}_{\Des{O_w}}$ 表示 Tracker 坐标系到人体 wrist 坐标系的固定旋转偏置。
+其中，$\Vector{p}_{\Des{O_r}}$ 表示局部 VR 坐标系下从 Tracker 原点到人体目标局部坐标系原点的平移偏置，$\Matrix{R}_{\Des{O_r}}$ 表示 Tracker 坐标系到目标局部坐标系的固定旋转偏置。
 
 \begin{table}[htbp]
     \centering
-    \caption{wrist 局部预定义变换参数}
-    \label{tab:wrist-pretransform}
-    \begin{tabular}{ccc}
+    \footnotesize
+    \setlength{\tabcolsep}{3pt}
+    \caption{HTC Tracker 的局部安装偏置参数}
+    \label{tab:htc-pretransform}
+    \begin{tabular}{p{0.16\textwidth} p{0.35\textwidth} p{0.42\textwidth}}
         \hline
-        参数 & 数值 & 说明 \\
+        角色 & 平移偏置 $\Vector{p}_{\Des{O_r}}$ / m & 旋转偏置四元数 $\left[q_x, q_y, q_z, q_w\right]$ \\
         \hline
-        $\Vector{p}_{\Des{O_w}}$ & 待填写 & 局部 VR 坐标系下的平移偏置 \\
-        $\Matrix{R}_{\Des{O_w}}$ & 待填写 & 局部 VR 坐标系下的旋转偏置 \\
+        \texttt{chest} & $\left[0.0, 0.0, 0.12\right]$ & $\left[0.0, 0.0, 0.0, 1.0\right]$ \\
+        \texttt{left\_wrist} & $\left[0.04242641, 0.0, 0.01757359\right]$ & $\left[0.0, -0.38268343, 0.0, 0.92387953\right]$ \\
+        \texttt{right\_wrist} & $\left[-0.04242641, 0.0, 0.01757359\right]$ & $\left[0.0, 0.38268343, 0.0, 0.92387953\right]$ \\
+        \texttt{left\_arm} & $\left[0.0, 0.0, 0.05\right]$ & $\left[0.0, 0.0, 0.0, 1.0\right]$ \\
+        \texttt{right\_arm} & $\left[0.0, 0.0, 0.05\right]$ & $\left[0.0, 0.0, 0.0, 1.0\right]$ \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section{Marvin 追踪遥操作的刚体变换}
+
+Marvin 的追踪遥操作控制器在 ROS 系下读取三组固定刚体变换，分别用于胸部到肩部、手腕到末端执行器，以及人体上臂到机械臂上臂的映射。对应的计算关系可写为
+\begin{align}
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{W_h}} &=
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{Ch}} \cdot
+    {}^{\Des{Ch}}\!\Matrix{T}_{\Des{W_h}},\\
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{W_r}} &=
+    {}^{\Des{S}}\!\Matrix{T}_{\Des{W_h}} \cdot
+    {}^{\Des{W_h}}\!\Matrix{T}_{\Des{W_r}},\\
+    {}^{\Des{S}}\!\Matrix{R}_{\Des{Arm_r}} &=
+    {}^{\Des{S}}\!\Matrix{R}_{\Des{Ch}} \cdot
+    {}^{\Des{Ch}}\!\Matrix{R}_{\Des{Arm_h}} \cdot
+    {}^{\Des{Arm_h}}\!\Matrix{R}_{\Des{Arm_r}}.
+\end{align}
+其中，\texttt{orientation} 字段同样采用 $\left[q_x, q_y, q_z, q_w\right]$ 顺序，且各参数均以 ROS 系坐标表达。
+
+\begin{table}[htbp]
+    \centering
+    \scriptsize
+    \setlength{\tabcolsep}{2pt}
+    \caption{Marvin 追踪遥操作的固定刚体变换参数}
+    \label{tab:marvin-pretransform}
+    \begin{tabular}{p{0.24\textwidth} p{0.08\textwidth} p{0.24\textwidth} p{0.32\textwidth}}
+        \hline
+        变换项 & 侧别 & 平移偏置 / m & 旋转偏置四元数 $\left[q_x, q_y, q_z, q_w\right]$ \\
+        \hline
+        \texttt{shoulder\_T\_chest} & left &
+        $\left[0.0, 0.38, -0.2\right]$ &
+        $\left[0.7071, 0.0, 0.0, 0.7071\right]$ \\
+        \texttt{shoulder\_T\_chest} & right &
+        $\left[0.0, -0.38, -0.2\right]$ &
+        $\left[-0.7071, 0.0, 0.0, 0.7071\right]$ \\
+        \texttt{wrist\_T\_ee} & left &
+        $\left[0.0, 0.0, 0.0\right]$ &
+        $\left[1.0, 0.0, 0.0, 0.0\right]$ \\
+        \texttt{wrist\_T\_ee} & right &
+        $\left[0.0, 0.0, 0.0\right]$ &
+        $\left[1.0, 0.0, 0.0, 0.0\right]$ \\
+        \texttt{arm\_human\_T\_arm\_robot} & left &
+        $\left[0.0, 0.0, 0.0\right]$ &
+        $\left[-0.5, 0.5, -0.5, 0.5\right]$ \\
+        \texttt{arm\_human\_T\_arm\_robot} & right &
+        $\left[0.0, 0.0, 0.0\right]$ &
+        $\left[-0.5, -0.5, 0.5, 0.5\right]$ \\
         \hline
     \end{tabular}
 \end{table}
@@ -59,3 +124,73 @@ $\|\Vector{y}\|=1$，并且
     \Vector{x}^{\mathrm T}\Matrix{A}^{\mathrm T}\Matrix{A}\Vector{x},
 \end{equation}
 所以该问题也可以看作矩阵 $\Matrix{A}^{\mathrm T}\Matrix{A}$ 的最小特征值对应特征向量问题。
+
+\chapter{$\pi_{0.5}$ 真机部署配置}\label{app:config}
+
+\section{策略部署配置}
+
+\begin{table}[htb]
+    \centering
+    \caption{$\pi_{0.5}$ 真机部署配置}\label{tab:pi05_config_app}
+    \begin{tabular}{lp{0.72\textwidth}}
+        \hline
+        项目 & 配置 \\
+        \hline
+        动作空间 & 27维关节空间（天机右臂 7 DoF + WUJI HAND 20 DoF），进入模型前零填充至 32 维\\
+        动作表示 & 右臂 7 维在训练时转换为相对当前状态的关节增量，灵巧手 20 维保持绝对关节位置；推理输出再还原为绝对关节目标\\
+        视觉输入 & 2路：顶部相机（\texttt{base\_0\_rgb}）+ 腕部相机（映射到 \texttt{right\_wrist\_0\_rgb}）\\
+        未使用图像槽位 & \texttt{left\_wrist\_0\_rgb} 零填充，掩码标记为无效 \\
+        状态输入 & 27维当前关节位置 \\
+        语言输入 & 任务指令 prompt \\
+        模型动作维度 & 32 \\
+        预测时域 & 50 步 \\
+        推理控制频率 & 默认 50 Hz，每次从动作块中执行若干步后重新规划 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section{策略训练}
+
+\begin{table}[htb]
+    \centering
+    \caption{策略训练硬件配置}\label{tab:pi05_training_hardware}
+    \begin{tabular}{lp{0.68\textwidth}}
+        \hline
+        项目 & 配置 \\
+        \hline
+        GPU & NVIDIA H20\mbox{-}3e $\times 8$ \\
+        单卡显存 & 143771 MiB \\
+        驱动版本 & 550.144.03 \\
+        CUDA 版本 & 12.4 \\
+        训练显存占用 & 约 13 GiB/卡，合计约 $13 \times 8$ GiB \\
+        训练耗时 & 约 6 小时 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{table}[htb]
+    \centering
+    \caption{策略训练超参数配置}\label{tab:pi05_training_config}
+    \begin{tabular}{lp{0.68\textwidth}}
+        \hline
+        项目 & 配置 \\
+        \hline
+        基座模型 & $\pi_{0.5}$ \\
+        微调方式 & 全量微调，不使用 LoRA \\
+        预训练权重 & $\pi_{0.5}$ 基座模型权重 \\
+        训练数据集 & right\_pick \\
+        模型动作维度 & 32 \\
+        任务动作维度 & 27（右臂 7 维 + WUJI HAND 20 维）\\
+        动作预测时域 & 50 \\
+        训练步数 & 30000 \\
+        全局 batch size & 32 \\
+        8 卡下单卡 batch & 4 \\
+        数据加载进程数 & 4 \\
+        优化器 & AdamW，梯度裁剪阈值为 1.0 \\
+        学习率策略 & Cosine decay，warmup 1000 步，峰值学习率 $2.5\times10^{-5}$，末端学习率 $2.5\times10^{-6}$ \\
+        EMA 衰减 & 0.99 \\
+        右臂动作处理 & 相对当前关节状态的增量 \\
+        灵巧手动作处理 & 绝对关节位置 \\
+        \hline
+    \end{tabular}
+\end{table}
