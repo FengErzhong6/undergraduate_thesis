@@ -665,7 +665,6 @@ FUNCTION {format.year}
       if$
     }
   if$
-  extra.label *
 }
 
 FUNCTION {format.date}
@@ -803,20 +802,23 @@ FUNCTION {format.series.vol.num.title}
 
 FUNCTION {format.series.vol.num.booktitle}
 { format.volume.number 's :=
-  series empty$ not
-    { series ": " *
-      s empty$ not
-        { s * "\quad " * }
-        'skip$
-      if$
-      booktitle *
-    }
+  booktitle empty$ not
     { booktitle
-      s empty$ not
-        { ": " * s * }
-        'skip$
+      series empty$ not
+        { ". " * series *
+          s empty$ not
+            { ", " * s * }
+            'skip$
+          if$
+        }
+        { s empty$ not
+            { ": " * s * }
+            'skip$
+          if$
+        }
       if$
     }
+    { "" }
   if$
 }
 
@@ -909,24 +911,12 @@ FUNCTION {format.address.publisher}
     { address
       format.publisher empty$ not
         { ": " * format.publisher * }
-        { url empty$ doi empty$ and
-            { ": " * format.sine.nomine * }
-            'skip$
-          if$
-        }
+        'skip$
       if$
     }
-    { url empty$ doi empty$ and
-        { format.publisher empty$ not
-            { format.sine.loco ": " * format.publisher * }
-            { format.sine.loco.sine.nomine }
-          if$
-        }
-        { format.publisher empty$ not
-            { format.publisher }
-            { "" }
-          if$
-        }
+    { format.publisher empty$ not
+        { format.publisher }
+        { "" }
       if$
     }
   if$

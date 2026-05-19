@@ -97,10 +97,11 @@
 %- top height = 1.0in (fixed) + voffset + topmargin + headheight + headsep 
 \setlength{\textheight}{246.2mm}% set required text height first
 \setlength{\voffset}{-17.4mm}% set vertical offset
-\setlength{\topmargin}{20pt}% vertical margin above header
-\setlength{\headheight}{12pt}% header height
+\setlength{\topmargin}{1pt}% vertical margin above header
+\setlength{\headheight}{31pt}% header height
 \setlength{\headsep}{17.5pt}% vertical margin between header and body text
 \setlength{\footskip}{29.5pt}% vertical margin between footer and body text
+\setlength{\@fptop}{0pt}% place float-only pages at the top of the text area
 %- specifies the amount of space between paragraphs.
 \setlength{\parskip}{0.5ex plus 0.25ex minus 0.25ex}
 %- line spacing
