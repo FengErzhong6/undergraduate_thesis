@@ -1189,10 +1189,7 @@ FUNCTION {online}
   format.mark "" output.after
   new.block
   format.address.publisher output
-  date empty$
-    { format.date output }
-    'skip$
-  if$
+  format.year "year" output.check
   format.pages punct.colon output.after
   format.editdate "" output.after
   format.urldate "" output.after
